@@ -1,0 +1,1 @@
+"""Beget hosting MCP server."""
