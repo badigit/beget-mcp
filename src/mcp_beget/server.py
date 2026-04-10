@@ -32,6 +32,8 @@ def main() -> None:
     transport = os.getenv("MCP_TRANSPORT", "stdio")
 
     if transport == "sse":
+        import uvicorn
+
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8322"))
 
@@ -45,7 +47,7 @@ def main() -> None:
         )
 
         log.info("Tools registered, starting SSE server on %s:%d", host, port)
-        mcp.run(transport="sse")
+        uvicorn.run(mcp.sse_app(), host=host, port=port)
     else:
         log.info("Tools registered, running stdio server")
         mcp.run(transport="stdio")
