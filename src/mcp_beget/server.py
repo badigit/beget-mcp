@@ -31,23 +31,22 @@ def main() -> None:
 
     transport = os.getenv("MCP_TRANSPORT", "stdio")
 
-    if transport == "sse":
-        import uvicorn
-
+    if transport in ("sse", "streamable-http"):
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8322"))
 
         mcp.settings.host = host
         mcp.settings.port = port
+        mcp.settings.stateless_http = True
 
-        from mcp.server.sse import TransportSecuritySettings
+        from mcp.server.transport_security import TransportSecuritySettings
 
         mcp.settings.transport_security = TransportSecuritySettings(
             enable_dns_rebinding_protection=False,
         )
 
-        log.info("Tools registered, starting SSE server on %s:%d", host, port)
-        uvicorn.run(mcp.sse_app(), host=host, port=port)
+        log.info("Tools registered, starting %s server on %s:%d", transport, host, port)
+        mcp.run(transport=transport)
     else:
         log.info("Tools registered, running stdio server")
         mcp.run(transport="stdio")
