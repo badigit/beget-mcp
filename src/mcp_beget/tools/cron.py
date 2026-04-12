@@ -1,15 +1,16 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def cron_list() -> str:
     """Все cron-задачи аккаунта."""
     return _json(get_client().call("cron", "getList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def cron_add(
     minutes: str,
     hours: str,
@@ -44,7 +45,7 @@ def cron_add(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def cron_delete(task_id: int) -> str:
     """Убрать cron-задачу.
 
@@ -54,7 +55,7 @@ def cron_delete(task_id: int) -> str:
     return _json(get_client().call("cron", "delete", {"row_number": task_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def cron_edit(
     task_id: int,
     minutes: str | None = None,
@@ -91,7 +92,7 @@ def cron_edit(
     return _json(get_client().call("cron", "edit", params))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def cron_toggle(row_number: int, is_hidden: int) -> str:
     """Переключить активность cron-задачи.
 
@@ -111,13 +112,13 @@ def cron_toggle(row_number: int, is_hidden: int) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def cron_get_email() -> str:
     """Адрес уведомлений о выполнении cron-задач."""
     return _json(get_client().call("cron", "getEmail"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def cron_set_email(email: str) -> str:
     """Назначить email для отчётов cron. Пустая строка отключает уведомления.
 

@@ -3,9 +3,10 @@ import json
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def dns_get(fqdn: str) -> str:
     """DNS-записи домена.
 
@@ -15,7 +16,7 @@ def dns_get(fqdn: str) -> str:
     return _json(get_client().call("dns", "getData", {"fqdn": fqdn}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def dns_set_a(fqdn: str, address: str, ttl: int = 300) -> str:
     """Задать A-запись (IPv4) для домена. Перезаписывает прежние A-записи.
 
@@ -36,7 +37,7 @@ def dns_set_a(fqdn: str, address: str, ttl: int = 300) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def dns_set_cname(fqdn: str, cname: str, ttl: int = 300) -> str:
     """Задать CNAME-запись для поддомена. Применимо только к поддоменам.
 
@@ -57,7 +58,7 @@ def dns_set_cname(fqdn: str, cname: str, ttl: int = 300) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def dns_set_txt(fqdn: str, txtdata: str, ttl: int = 300) -> str:
     """Задать TXT-запись домена (SPF, верификация и пр.).
 
@@ -78,7 +79,7 @@ def dns_set_txt(fqdn: str, txtdata: str, ttl: int = 300) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def dns_set_mx(fqdn: str, exchange: str, preference: int = 10, ttl: int = 300) -> str:
     """Задать MX-запись (почтовый сервер) домена.
 
@@ -100,7 +101,7 @@ def dns_set_mx(fqdn: str, exchange: str, preference: int = 10, ttl: int = 300) -
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def dns_set_records(fqdn: str, records: str) -> str:
     """Произвольная замена DNS-записей домена.
 

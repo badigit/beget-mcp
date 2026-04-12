@@ -1,15 +1,16 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def ftp_list() -> str:
     """Все FTP-аккаунты на хостинге."""
     return _json(get_client().call("ftp", "getList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def ftp_add(suffix: str, homedir: str, password: str) -> str:
     """Добавить FTP-аккаунт. Итоговый логин: login_suffix.
 
@@ -31,7 +32,7 @@ def ftp_add(suffix: str, homedir: str, password: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def ftp_delete(suffix: str) -> str:
     """Убрать FTP-аккаунт.
 
@@ -41,7 +42,7 @@ def ftp_delete(suffix: str) -> str:
     return _json(get_client().call("ftp", "delete", {"suffix": suffix}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def ftp_change_password(suffix: str, password: str) -> str:
     """Сменить пароль FTP-аккаунта.
 

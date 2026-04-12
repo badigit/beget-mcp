@@ -3,15 +3,16 @@ import json
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_list() -> str:
     """Все домены, привязанные к аккаунту."""
     return _json(get_client().call("domain", "getList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def domain_add(hostname: str, zone_id: int = 1) -> str:
     """Зарегистрировать виртуальный домен (без покупки).
 
@@ -31,7 +32,7 @@ def domain_add(hostname: str, zone_id: int = 1) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def domain_delete(domain_id: int) -> str:
     """Убрать домен из аккаунта.
 
@@ -41,19 +42,19 @@ def domain_delete(domain_id: int) -> str:
     return _json(get_client().call("domain", "delete", {"id": domain_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_zones() -> str:
     """Доступные доменные зоны (.ru, .com и пр.)."""
     return _json(get_client().call("domain", "getZoneList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_subdomains() -> str:
     """Все поддомены аккаунта."""
     return _json(get_client().call("domain", "getSubdomainList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_php_version(full_fqdn: str) -> str:
     """Текущая версия PHP на домене.
 
@@ -63,7 +64,7 @@ def domain_php_version(full_fqdn: str) -> str:
     return _json(get_client().call("domain", "getPhpVersion", {"full_fqdn": full_fqdn}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def domain_change_php(full_fqdn: str, php_version: str) -> str:
     """Переключить версию PHP для домена.
 
@@ -83,7 +84,7 @@ def domain_change_php(full_fqdn: str, php_version: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def domain_add_subdomain(subdomain: str, domain_id: int) -> str:
     """Создать поддомен на базе существующего домена.
 
@@ -103,7 +104,7 @@ def domain_add_subdomain(subdomain: str, domain_id: int) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def domain_delete_subdomain(subdomain_id: int) -> str:
     """Убрать поддомен.
 
@@ -113,7 +114,7 @@ def domain_delete_subdomain(subdomain_id: int) -> str:
     return _json(get_client().call("domain", "deleteSubdomain", {"id": subdomain_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_check_to_register(hostname: str, zone_id: int, period: int = 1) -> str:
     """Проверка доступности домена для покупки.
 
@@ -135,7 +136,7 @@ def domain_check_to_register(hostname: str, zone_id: int, period: int = 1) -> st
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def domain_get_directives(full_fqdn: str) -> str:
     """Пользовательские PHP-директивы домена.
 
@@ -145,7 +146,7 @@ def domain_get_directives(full_fqdn: str) -> str:
     return _json(get_client().call("domain", "getDirectives", {"full_fqdn": full_fqdn}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def domain_add_directives(full_fqdn: str, directives: str) -> str:
     """Задать PHP-директивы для домена.
 
@@ -165,7 +166,7 @@ def domain_add_directives(full_fqdn: str, directives: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def domain_remove_directives(full_fqdn: str, directives: str) -> str:
     """Снять PHP-директивы с домена.
 

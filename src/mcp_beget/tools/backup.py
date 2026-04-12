@@ -1,21 +1,22 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def backup_files_list() -> str:
     """Доступные файловые резервные копии."""
     return _json(get_client().call("backup", "getFileBackupList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def backup_mysql_list() -> str:
     """Доступные резервные копии баз MySQL."""
     return _json(get_client().call("backup", "getMysqlBackupList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def backup_restore_file(backup_id: int, paths: list[str]) -> str:
     """Откатить файлы из резервной копии.
 
@@ -35,7 +36,7 @@ def backup_restore_file(backup_id: int, paths: list[str]) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def backup_restore_mysql(backup_id: int, databases: list[str]) -> str:
     """Откатить базу MySQL из резервной копии.
 
@@ -55,7 +56,7 @@ def backup_restore_mysql(backup_id: int, databases: list[str]) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def backup_file_list(backup_id: int | None = None, path: str = "") -> str:
     """Содержимое файлового бэкапа (файлы и каталоги).
 
@@ -71,7 +72,7 @@ def backup_file_list(backup_id: int | None = None, path: str = "") -> str:
     return _json(get_client().call("backup", "getFileList", params or None))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def backup_mysql_db_list(backup_id: int | None = None) -> str:
     """Базы данных внутри резервной копии.
 
@@ -84,7 +85,7 @@ def backup_mysql_db_list(backup_id: int | None = None) -> str:
     return _json(get_client().call("backup", "getMysqlList", params or None))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def backup_download_file(paths: list[str], backup_id: int | None = None) -> str:
     """Выгрузить файлы из бэкапа в корневую директорию аккаунта.
 
@@ -98,7 +99,7 @@ def backup_download_file(paths: list[str], backup_id: int | None = None) -> str:
     return _json(get_client().call("backup", "downloadFile", params))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def backup_download_mysql(bases: list[str], backup_id: int | None = None) -> str:
     """Выгрузить дамп MySQL из бэкапа в корневую директорию аккаунта.
 
@@ -112,7 +113,7 @@ def backup_download_mysql(bases: list[str], backup_id: int | None = None) -> str
     return _json(get_client().call("backup", "downloadMysql", params))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def backup_log() -> str:
     """Журнал операций восстановления и скачивания бэкапов."""
     return _json(get_client().call("backup", "getLog"))

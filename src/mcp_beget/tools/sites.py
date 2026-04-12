@@ -1,15 +1,16 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def site_list() -> str:
     """Все сайты аккаунта и связанные с ними домены."""
     return _json(get_client().call("site", "getList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def site_add(name: str) -> str:
     """Зарегистрировать сайт. В файловой системе появится каталог name/public_html.
 
@@ -19,7 +20,7 @@ def site_add(name: str) -> str:
     return _json(get_client().call("site", "add", {"name": name}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def site_delete(site_id: int) -> str:
     """Убрать сайт из аккаунта.
 
@@ -29,7 +30,7 @@ def site_delete(site_id: int) -> str:
     return _json(get_client().call("site", "delete", {"id": site_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def site_link_domain(site_id: int, domain_id: int) -> str:
     """Назначить домен для сайта.
 
@@ -49,7 +50,7 @@ def site_link_domain(site_id: int, domain_id: int) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def site_unlink_domain(domain_id: int) -> str:
     """Снять привязку домена от сайта.
 
@@ -59,7 +60,7 @@ def site_unlink_domain(domain_id: int) -> str:
     return _json(get_client().call("site", "unlinkDomain", {"domain_id": domain_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def site_freeze(site_id: int, excluded_paths: list[str] | None = None) -> str:
     """Блокировка изменений файлов сайта. Активируется в течение 5-10 минут.
 
@@ -73,7 +74,7 @@ def site_freeze(site_id: int, excluded_paths: list[str] | None = None) -> str:
     return _json(get_client().call("site", "freeze", params))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def site_unfreeze(site_id: int) -> str:
     """Снять блокировку изменений файлов сайта. Активируется в течение 5-10 минут.
 
@@ -83,7 +84,7 @@ def site_unfreeze(site_id: int) -> str:
     return _json(get_client().call("site", "unfreeze", {"id": site_id}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def site_is_frozen(site_id: int) -> str:
     """Статус блокировки файлов сайта.
 

@@ -1,15 +1,16 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def mysql_list() -> str:
     """Все базы данных MySQL на аккаунте."""
     return _json(get_client().call("mysql", "getList"))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mysql_add(suffix: str, password: str) -> str:
     """Добавить базу MySQL. Итоговое имя: login_suffix.
 
@@ -29,7 +30,7 @@ def mysql_add(suffix: str, password: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def mysql_delete(suffix: str) -> str:
     """Убрать базу данных MySQL.
 
@@ -39,7 +40,7 @@ def mysql_delete(suffix: str) -> str:
     return _json(get_client().call("mysql", "dropDb", {"suffix": suffix}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mysql_change_password(suffix: str, password: str, access: str = "localhost") -> str:
     """Сменить пароль к базе MySQL.
 
@@ -61,7 +62,7 @@ def mysql_change_password(suffix: str, password: str, access: str = "localhost")
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mysql_add_access(suffix: str, access: str, password: str) -> str:
     """Открыть доступ к базе MySQL с указанного хоста.
 
@@ -83,7 +84,7 @@ def mysql_add_access(suffix: str, access: str, password: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mysql_drop_access(suffix: str, access: str) -> str:
     """Отозвать доступ к базе MySQL с указанного хоста.
 

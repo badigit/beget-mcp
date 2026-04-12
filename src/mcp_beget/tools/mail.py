@@ -1,9 +1,10 @@
 from ..app import mcp
 from ..client import get_client
 from . import _json
+from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def mail_list(domain: str) -> str:
     """Почтовые ящики на указанном домене.
 
@@ -13,7 +14,7 @@ def mail_list(domain: str) -> str:
     return _json(get_client().call("mail", "getMailboxList", {"domain": domain}))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_create(domain: str, mailbox: str, password: str) -> str:
     """Добавить почтовый ящик.
 
@@ -35,7 +36,7 @@ def mail_create(domain: str, mailbox: str, password: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_change_password(domain: str, mailbox: str, password: str) -> str:
     """Сменить пароль почтового ящика.
 
@@ -57,7 +58,7 @@ def mail_change_password(domain: str, mailbox: str, password: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=DESTRUCTIVE)
 def mail_delete(domain: str, mailbox: str) -> str:
     """Убрать почтовый ящик.
 
@@ -77,7 +78,7 @@ def mail_delete(domain: str, mailbox: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_change_settings(
     domain: str,
     mailbox: str,
@@ -104,7 +105,7 @@ def mail_change_settings(
     return _json(get_client().call("mail", "changeMailboxSettings", params))
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_forward_add(domain: str, mailbox: str, forward_mailbox: str) -> str:
     """Включить пересылку на указанный адрес.
 
@@ -126,7 +127,7 @@ def mail_forward_add(domain: str, mailbox: str, forward_mailbox: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_forward_delete(domain: str, mailbox: str, forward_mailbox: str) -> str:
     """Снять пересылку на указанный адрес.
 
@@ -148,7 +149,7 @@ def mail_forward_delete(domain: str, mailbox: str, forward_mailbox: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def mail_forward_list(domain: str, mailbox: str) -> str:
     """Адреса пересылки для ящика.
 
@@ -168,7 +169,7 @@ def mail_forward_list(domain: str, mailbox: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_set_domain_mail(domain: str, domain_mailbox: str) -> str:
     """Назначить catch-all ящик для домена.
 
@@ -188,7 +189,7 @@ def mail_set_domain_mail(domain: str, domain_mailbox: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=MUTATING)
 def mail_clear_domain_mail(domain: str) -> str:
     """Отключить catch-all для домена.
 
