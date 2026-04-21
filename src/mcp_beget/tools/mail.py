@@ -2,6 +2,7 @@ from ..app import mcp
 from ..client import get_client
 from . import _json
 from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
+from .dns import _get_result, _merge_set, _normalize_fqdn
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -197,3 +198,85 @@ def mail_clear_domain_mail(domain: str) -> str:
         domain: Домен
     """
     return _json(get_client().call("mail", "clearDomainMail", {"domain": domain}))
+
+
+def _setup_mail_provider(
+    fqdn: str,
+    mx_exchange: str,
+    mx_preference: int,
+    spf_value: str,
+    force: bool = False,
+) -> dict:
+    """Shared helper for mail provider setup: MX replaced, SPF added (existing
+    non-SPF TXT preserved — DKIM/verification tokens stay intact)."""
+    fqdn_n = _normalize_fqdn(fqdn)
+    current = _get_result(fqdn_n)
+    existing_txt = list((current.get("records") or {}).get("TXT") or [])
+
+    non_spf_txt = [
+        t for t in existing_txt
+        if not t.get("txtdata", "").strip().lower().startswith("v=spf1")
+    ]
+    new_txt = non_spf_txt + [{"txtdata": spf_value}]
+
+    overrides = {
+        "MX": [{"exchange": mx_exchange, "preference": mx_preference}],
+        "TXT": new_txt,
+    }
+    return _merge_set(fqdn_n, overrides, force=force)
+
+
+@mcp.tool(annotations=DESTRUCTIVE)
+def mail_setup_yandex(fqdn: str, force: bool = False) -> str:
+    """Прописать MX и SPF для Яндекс 360 одним вызовом.
+
+    Ставит:
+      - MX: mx.yandex.net, preference 10 (заменяет существующие MX)
+      - TXT SPF: v=spf1 redirect=_spf.yandex.net (заменяет существующую SPF,
+        прочие TXT — DKIM, верификации — сохраняются)
+
+    DKIM Яндекс настраивается отдельно (Я.Почта для домена → DKIM), там выдаётся
+    ключ для mail._domainkey.<домен>. После получения ключа — dns_set_txt на
+    соответствующий поддомен (либо сначала domain_add_subdomain).
+
+    Не трогает A-записи, NS и прочие TXT. Если в зоне есть CAA/SRV — потребует
+    force=True (они будут удалены).
+
+    Args:
+        fqdn: Имя домена (site.ru)
+        force: Продолжить при наличии CAA/SRV
+    """
+    return _json(_setup_mail_provider(
+        fqdn,
+        mx_exchange="mx.yandex.net",
+        mx_preference=10,
+        spf_value="v=spf1 redirect=_spf.yandex.net",
+        force=force,
+    ))
+
+
+@mcp.tool(annotations=DESTRUCTIVE)
+def mail_setup_mailru(fqdn: str, force: bool = False) -> str:
+    """Прописать MX и SPF для Mail.ru для бизнеса одним вызовом.
+
+    Ставит:
+      - MX: emx.mail.ru, preference 10
+      - TXT SPF: v=spf1 redirect=_spf.mail.ru (прочие TXT сохраняются)
+
+    DKIM настраивается в панели Mail.ru для бизнеса — ключ кладётся на
+    mailru._domainkey.<домен>.
+
+    Не трогает A-записи, NS и прочие TXT. Если в зоне есть CAA/SRV — потребует
+    force=True.
+
+    Args:
+        fqdn: Имя домена
+        force: Продолжить при наличии CAA/SRV
+    """
+    return _json(_setup_mail_provider(
+        fqdn,
+        mx_exchange="emx.mail.ru",
+        mx_preference=10,
+        spf_value="v=spf1 redirect=_spf.mail.ru",
+        force=force,
+    ))
