@@ -1,4 +1,4 @@
-"""Tests for mail tools: setup helpers."""
+"""Tests for mail tools: setup helpers, domain normalization."""
 
 from mcp_beget.tools import mail
 
@@ -59,3 +59,62 @@ def test_mail_setup_yandex_adds_spf_when_none_existed(fake_client):
     _, _, params = fake_client.calls[-1]
     spf = [r for r in params["records"]["TXT"] if r["txtdata"].startswith("v=spf1")]
     assert spf == [{"txtdata": "v=spf1 redirect=_spf.yandex.net"}]
+
+
+# ---------------------------------------------------------------------------
+# Domain normalization in mail_*
+# ---------------------------------------------------------------------------
+
+def test_mail_list_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "getMailboxList", {"status": "success", "result": []})
+    mail.mail_list("Example.COM.")
+    _, _, params = fake_client.calls[-1]
+    assert params == {"domain": "example.com"}
+
+
+def test_mail_create_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "createMailbox", {"status": "success", "result": True})
+    mail.mail_create("Example.COM.", "info", "password123")
+    _, _, params = fake_client.calls[-1]
+    assert params["domain"] == "example.com"
+    assert params["mailbox"] == "info"
+    assert params["mailbox_password"] == "password123"
+
+
+def test_mail_change_password_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "changeMailboxPassword", {"status": "success", "result": True})
+    mail.mail_change_password("Site.RU.", "info", "newpwd")
+    _, _, params = fake_client.calls[-1]
+    assert params["domain"] == "site.ru"
+
+
+def test_mail_delete_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "dropMailbox", {"status": "success", "result": True})
+    mail.mail_delete("Site.RU.", "info")
+    _, _, params = fake_client.calls[-1]
+    assert params["domain"] == "site.ru"
+
+
+def test_mail_change_settings_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "changeMailboxSettings", {"status": "success", "result": True})
+    mail.mail_change_settings("Site.RU.", "info", spam_filter_status=1)
+    _, _, params = fake_client.calls[-1]
+    assert params["domain"] == "site.ru"
+    assert params["spam_filter_status"] == 1
+    # Sentinel defaults are not sent
+    assert "spam_filter" not in params
+    assert "forward_mail_status" not in params
+
+
+def test_mail_forward_add_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "forwardListAddMailbox", {"status": "success", "result": True})
+    mail.mail_forward_add("Site.RU.", "info", "target@example.com")
+    _, _, params = fake_client.calls[-1]
+    assert params["domain"] == "site.ru"
+
+
+def test_mail_clear_domain_mail_normalizes_domain(fake_client):
+    fake_client.set_response("mail", "clearDomainMail", {"status": "success", "result": True})
+    mail.mail_clear_domain_mail("Site.RU.")
+    _, _, params = fake_client.calls[-1]
+    assert params == {"domain": "site.ru"}

@@ -93,11 +93,11 @@ def cron_edit(
 
 
 @mcp.tool(annotations=MUTATING)
-def cron_toggle(row_number: int, is_hidden: int) -> str:
+def cron_toggle(task_id: int, is_hidden: int) -> str:
     """Переключить активность cron-задачи.
 
     Args:
-        row_number: ID задачи
+        task_id: ID задачи (полученный из cron_list)
         is_hidden: 1 = выключить (скрыть), 0 = включить
     """
     return _json(
@@ -105,7 +105,7 @@ def cron_toggle(row_number: int, is_hidden: int) -> str:
             "cron",
             "changeHiddenState",
             {
-                "row_number": row_number,
+                "row_number": task_id,
                 "is_hidden": is_hidden,
             },
         )

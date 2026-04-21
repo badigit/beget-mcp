@@ -88,16 +88,28 @@ def domain_change_php(full_fqdn: str, php_version: str) -> str:
 def domain_add_subdomain(subdomain: str, domain_id: int) -> str:
     """Создать поддомен на базе существующего домена.
 
+    ``subdomain`` — ТОЛЬКО префикс (``blog``), без родителя. Родитель задаётся
+    через ``domain_id`` (см. domain_list). Полный FQDN (``blog.site.ru``) будет
+    отклонён.
+
     Args:
         subdomain: Имя поддомена (например: blog)
         domain_id: ID родительского домена
     """
+    sub = subdomain.strip().rstrip(".").lower()
+    if "." in sub:
+        raise ValueError(
+            f"subdomain must be a label only (e.g. 'blog'), not a full FQDN. "
+            f"Got: {subdomain!r}. Parent domain is chosen by domain_id."
+        )
+    if not sub:
+        raise ValueError("subdomain must not be empty")
     return _json(
         get_client().call(
             "domain",
             "addSubdomainVirtual",
             {
-                "subdomain": subdomain,
+                "subdomain": sub,
                 "domain_id": domain_id,
             },
         )

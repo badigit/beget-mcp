@@ -12,7 +12,9 @@ def mail_list(domain: str) -> str:
     Args:
         domain: Домен (например: site.ru)
     """
-    return _json(get_client().call("mail", "getMailboxList", {"domain": domain}))
+    return _json(get_client().call(
+        "mail", "getMailboxList", {"domain": _normalize_fqdn(domain)}
+    ))
 
 
 @mcp.tool(annotations=MUTATING)
@@ -29,7 +31,7 @@ def mail_create(domain: str, mailbox: str, password: str) -> str:
             "mail",
             "createMailbox",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
                 "mailbox_password": password,
             },
@@ -51,7 +53,7 @@ def mail_change_password(domain: str, mailbox: str, password: str) -> str:
             "mail",
             "changeMailboxPassword",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
                 "mailbox_password": password,
             },
@@ -72,7 +74,7 @@ def mail_delete(domain: str, mailbox: str) -> str:
             "mail",
             "dropMailbox",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
             },
         )
@@ -96,7 +98,7 @@ def mail_change_settings(
         spam_filter: Уровень фильтрации (-1 = не менять)
         forward_mail_status: no_forward / forward / forward_and_delete (пусто = не менять)
     """
-    params: dict = {"domain": domain, "mailbox": mailbox}
+    params: dict = {"domain": _normalize_fqdn(domain), "mailbox": mailbox}
     if spam_filter_status >= 0:
         params["spam_filter_status"] = spam_filter_status
     if spam_filter >= 0:
@@ -120,7 +122,7 @@ def mail_forward_add(domain: str, mailbox: str, forward_mailbox: str) -> str:
             "mail",
             "forwardListAddMailbox",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
                 "forward_mailbox": forward_mailbox,
             },
@@ -142,7 +144,7 @@ def mail_forward_delete(domain: str, mailbox: str, forward_mailbox: str) -> str:
             "mail",
             "forwardListDeleteMailbox",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
                 "forward_mailbox": forward_mailbox,
             },
@@ -163,7 +165,7 @@ def mail_forward_list(domain: str, mailbox: str) -> str:
             "mail",
             "forwardListShow",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "mailbox": mailbox,
             },
         )
@@ -183,7 +185,7 @@ def mail_set_domain_mail(domain: str, domain_mailbox: str) -> str:
             "mail",
             "setDomainMail",
             {
-                "domain": domain,
+                "domain": _normalize_fqdn(domain),
                 "domain_mailbox": domain_mailbox,
             },
         )
@@ -197,7 +199,9 @@ def mail_clear_domain_mail(domain: str) -> str:
     Args:
         domain: Домен
     """
-    return _json(get_client().call("mail", "clearDomainMail", {"domain": domain}))
+    return _json(get_client().call(
+        "mail", "clearDomainMail", {"domain": _normalize_fqdn(domain)}
+    ))
 
 
 def _setup_mail_provider(
