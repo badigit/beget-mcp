@@ -28,9 +28,13 @@ def get_client() -> "BegetClient":
 class BegetClient:
     """Thin wrapper around Beget shared-hosting REST API.
 
-    All endpoints follow the same convention:
-    ``GET /api/{section}/{method}?login=...&passwd=...&output_format=json``
-    with optional ``input_format=json&input_data=<json>`` for payload.
+    All endpoints follow ``POST /api/{section}/{method}`` with:
+      - query string: ``output_format=json``
+      - form body: ``login``, ``passwd``, and when ``params`` is given
+        ``input_format=json`` + ``input_data=<json>``.
+
+    Credentials go in the POST body (not query string) so they don't leak into
+    access logs / proxy logs. Log lines here redact ``passwd``.
     """
 
     API_BASE = "https://api.beget.com/api"
@@ -49,18 +53,22 @@ class BegetClient:
         """
         endpoint = f"{self.API_BASE}/{section}/{method}"
 
-        qs: dict = {
+        data: dict = {
             "login": self._cfg.login,
             "passwd": self._cfg.password,
-            "output_format": "json",
         }
         if params is not None:
-            qs["input_format"] = "json"
-            qs["input_data"] = json.dumps(params)
+            data["input_format"] = "json"
+            data["input_data"] = json.dumps(params)
 
         log.debug("%s/%s params=%s", section, method, params)
 
-        resp = self._http.get(endpoint, params=qs, timeout=self._cfg.timeout)
+        resp = self._http.post(
+            endpoint,
+            params={"output_format": "json"},
+            data=data,
+            timeout=self._cfg.timeout,
+        )
         resp.raise_for_status()
 
         body: dict = resp.json()
