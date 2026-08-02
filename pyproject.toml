@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Beget hosting MCP server — manage sites, domains, MySQL, FTP, DNS, cron, backups via AI agents"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp[cli]",
+    # Верхняя граница обязательна: mcp 2.0.0 (28.07.2026) убрал mcp.server.fastmcp,
+    # на который опирается app.py. Снимать только вместе с миграцией на MCPServer.
+    "mcp[cli]>=1.27,<2.0.0",
     "requests",
     "python-dotenv",
 ]

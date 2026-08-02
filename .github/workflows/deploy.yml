@@ -16,6 +16,10 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /opt/beget-mcp && git pull --ff-only
-            cd /opt/mcp-gateway && docker compose up -d --build beget-mcp
+            # Стек mcp-gateway переехал из /opt/mcp-gateway в монорепо infra-docker
+            # (27.04.2026). Со старым путём деплой молча не доезжал с апреля.
+            cd /opt/infra-docker/beget-vps/mcp-gateway
+            docker compose up -d --build beget-mcp
             docker compose restart mcpproxy-go
