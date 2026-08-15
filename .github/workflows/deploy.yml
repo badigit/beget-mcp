@@ -9,17 +9,27 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # Нативный ssh вместо appleboy/ssh-action: тому пришлось бы отдать
+      # приватный ключ прод-хоста, то есть доверить root чужому коду,
+      # обновляющемуся вне нашего контроля.
+      - name: Prepare ssh key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Ключ на хосте заперт в forced command (/usr/local/sbin/ci-deploy-beget-mcp,
+      # ставится playbook'ом install-ci-deploy.yml в репо infra-docker). Отсюда уходит
+      # только глагол; шаги деплоя (git pull, compose up --build, restart mcpproxy-go)
+      # живут в обёртке на хосте. Прислать shell-строку бессмысленно: sshd её не
+      # исполнит, обёртка запишет REJECT в journalctl -t ci-deploy.
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/beget-mcp && git pull --ff-only
-            # Стек mcp-gateway переехал из /opt/mcp-gateway в монорепо infra-docker
-            # (27.04.2026). Со старым путём деплой молча не доезжал с апреля.
-            cd /opt/infra-docker/beget-vps/mcp-gateway
-            docker compose up -d --build beget-mcp
-            docker compose restart mcpproxy-go
+        run: |
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" deploy
+
+      - name: Verify container is running
+        run: |
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" verify
