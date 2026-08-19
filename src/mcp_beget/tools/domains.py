@@ -50,7 +50,13 @@ def domain_zones() -> str:
 
 @mcp.tool(annotations=READ_ONLY)
 def domain_subdomains() -> str:
-    """Все поддомены аккаунта."""
+    """Все поддомены аккаунта.
+
+    Beget не отдаёт здесь www-алиасы, которые сам создаёт к поддомену
+    (www.sub.site.ru к sub.site.ru): их нет ни в этом списке, ни в dns/getData.
+    Записи такого имени смотреть через dns_get — он уходит на фолбэк
+    к родительской зоне.
+    """
     return _json(get_client().call("domain", "getSubdomainList"))
 
 

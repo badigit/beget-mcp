@@ -74,7 +74,20 @@ class BegetClient:
         body: dict = resp.json()
 
         if body.get("status") == "success":
-            return body.get("answer", {})
+            answer = body.get("answer", {})
+            # Beget отдаёт HTTP-200 и status:success на конверте, а собственную
+            # ошибку метода кладёт внутрь answer (METHOD_FAILED, INVALID_DATA).
+            # Без этой ветки error-объект уходит наверх как валидный ответ:
+            # вызывающий код видит "успех", а except BegetAPIError не срабатывает.
+            if isinstance(answer, dict) and answer.get("status") == "error":
+                errs = answer.get("errors") or []
+                first = errs[0] if errs and isinstance(errs[0], dict) else {}
+                err_text = first.get("error_text") or "Method failed"
+                err_code = first.get("error_code", "")
+                if err_code == "AUTH_ERROR":
+                    raise BegetAuthError(err_text, code=err_code, details=body)
+                raise BegetAPIError(err_text, code=err_code, details=body)
+            return answer
 
         err_msg = body.get("error_text", "")
         err_code = body.get("error_code", "")

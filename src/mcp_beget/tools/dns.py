@@ -38,9 +38,25 @@ def _get_data(fqdn: str) -> dict:
 
 
 def _get_result(fqdn: str) -> dict:
-    """dns/getData unwrapped to the ``result`` dict (records, set_type, ...)."""
+    """dns/getData unwrapped to the ``result`` dict (records, set_type, ...).
+
+    Raises BegetAPIError if the zone could not be read. Returning ``{}`` here
+    would make read-merge-write silently degrade into a zone-wide wipe: the
+    merge would preserve nothing and changeRecords would drop every record
+    the caller did not pass.
+    """
     answer = _get_data(fqdn)
-    return answer.get("result") or {}
+    result = answer.get("result") if isinstance(answer, dict) else None
+    if not isinstance(result, dict) or not result:
+        raise BegetAPIError(
+            f"dns/getData returned no zone data for {fqdn} — refusing to write "
+            f"blind, as changeRecords would wipe the existing records. To write "
+            f"the full zone intentionally, use dns_set_records with "
+            f"replace_all=True.",
+            code="NO_ZONE_DATA",
+            details={"answer": answer},
+        )
+    return result
 
 
 def _detect_unwritable(result: dict) -> list[str]:
@@ -129,6 +145,12 @@ def dns_get(fqdn: str) -> str:
     try:
         return _json(_get_data(fqdn_n))
     except BegetAPIError as e:
+        # Только METHOD_FAILED значит «такой сущности нет». INVALID_DATA,
+        # rate-limit и транзиентные сбои отдаём как есть: иначе фолбэк подменит
+        # их записями родителя и note про несуществующий поддомен, спрятав
+        # настоящую причину.
+        if e.code != "METHOD_FAILED":
+            raise
         if "." not in fqdn_n or fqdn_n.count(".") == 1:
             raise
         parent = fqdn_n.split(".", 1)[1]

@@ -59,7 +59,26 @@ def test_call_raises_auth_error_on_bad_credentials(client):
 
 
 @responses.activate
-def test_call_raises_api_error_on_nested_errors(client):
+def test_call_raises_api_error_on_top_level_error(client):
+    responses.post(
+        "https://api.beget.com/api/dns/getData",
+        json={"status": "error", "error_code": "METHOD_FAILED", "error_text": "boom"},
+    )
+    with pytest.raises(BegetAPIError) as exc:
+        client.call("dns", "getData", {"fqdn": "x"})
+    assert exc.value.code == "METHOD_FAILED"
+
+
+@responses.activate
+def test_call_raises_api_error_on_error_inside_answer(client):
+    """Beget wraps method failures in a success envelope — must still raise.
+
+    Live-verified against dns/getData on a www alias and cron/delete with a bad
+    param: HTTP 200, top-level status "success", error only inside ``answer``.
+    Returning that as a value made every ``except BegetAPIError`` unreachable —
+    dns_get never reached its parent-zone fallback, and read-merge-write saw an
+    empty zone and wiped records.
+    """
     responses.post(
         "https://api.beget.com/api/dns/getData",
         json={
@@ -72,13 +91,52 @@ def test_call_raises_api_error_on_nested_errors(client):
             },
         },
     )
-    # Note: the top-level status is "success" here, so client returns the answer
-    # as-is; only when top-level is "error" we raise. Test the error-top-level case.
-    responses.replace(
-        responses.POST,
+    with pytest.raises(BegetAPIError) as exc:
+        client.call("dns", "getData", {"fqdn": "www.sub.example.com"})
+    assert exc.value.code == "METHOD_FAILED"
+    assert "Failed to get DNS records" in exc.value.message
+
+
+@responses.activate
+def test_call_returns_list_answer_untouched(client):
+    """Answers that are not dicts must pass through the error check unharmed."""
+    responses.post(
+        "https://api.beget.com/api/domain/getList",
+        json={"status": "success", "answer": [{"id": 1}, {"id": 2}]},
+    )
+    assert client.call("domain", "getList") == [{"id": 1}, {"id": 2}]
+
+
+@responses.activate
+def test_call_raises_auth_error_on_auth_error_inside_answer(client):
+    """AUTH_ERROR must map to BegetAuthError on both paths, not just top level."""
+    responses.post(
+        "https://api.beget.com/api/user/getAccountInfo",
+        json={
+            "status": "success",
+            "answer": {
+                "status": "error",
+                "errors": [{"error_code": "AUTH_ERROR", "error_text": "Bad login"}],
+            },
+        },
+    )
+    with pytest.raises(BegetAuthError):
+        client.call("user", "getAccountInfo")
+
+
+@responses.activate
+def test_error_string_carries_the_code(client):
+    """MCP surfaces only str(exc) — the code must ride along or the agent is blind."""
+    responses.post(
         "https://api.beget.com/api/dns/getData",
-        json={"status": "error", "error_code": "METHOD_FAILED", "error_text": "boom"},
+        json={
+            "status": "success",
+            "answer": {
+                "status": "error",
+                "errors": [{"error_code": "METHOD_FAILED", "error_text": "Failed to get"}],
+            },
+        },
     )
     with pytest.raises(BegetAPIError) as exc:
         client.call("dns", "getData", {"fqdn": "x"})
-    assert exc.value.code == "METHOD_FAILED"
+    assert str(exc.value) == "[METHOD_FAILED] Failed to get"

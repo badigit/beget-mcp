@@ -307,3 +307,50 @@ def test_dns_get_does_not_try_parent_for_registrable_zone(fake_client):
         dns.dns_get("example.com")
     # Exactly one getData attempted — no parent attempt.
     assert sum(1 for _, m, _ in fake_client.calls if m == "getData") == 1
+
+
+# ---------------------------------------------------------------------------
+# _get_result refuses to hand an empty zone to read-merge-write
+# ---------------------------------------------------------------------------
+
+
+def test_get_result_raises_when_answer_has_no_result(fake_client):
+    """An answer without ``result`` must raise, not degrade into an empty zone."""
+    fake_client.set_response("dns", "getData", {"status": "success"})
+    with pytest.raises(BegetAPIError) as exc:
+        dns._get_result("example.com")
+    assert exc.value.code == "NO_ZONE_DATA"
+
+
+def test_set_does_not_write_when_zone_unreadable(fake_client):
+    """Zone read failure must abort the write — changeRecords would wipe the zone."""
+    fake_client.set_error(
+        "dns", "getData",
+        BegetAPIError("Failed to get DNS records", code="METHOD_FAILED"),
+    )
+    with pytest.raises(BegetAPIError):
+        dns.dns_set_a("www.sub.example.com", "203.0.113.10")
+    assert not [c for c in fake_client.calls if c[1] == "changeRecords"]
+
+
+def test_set_does_not_write_when_zone_result_empty(fake_client):
+    """Same guard for the softer failure: success envelope, no result payload."""
+    fake_client.set_response("dns", "getData", {"status": "success", "result": {}})
+    with pytest.raises(BegetAPIError) as exc:
+        dns.dns_set_txt("example.com", "v=spf1 -all")
+    assert exc.value.code == "NO_ZONE_DATA"
+    assert not [c for c in fake_client.calls if c[1] == "changeRecords"]
+
+
+def test_dns_get_does_not_fall_back_on_non_method_failed(fake_client):
+    """Only METHOD_FAILED means "no such entity" — other errors must surface as-is."""
+    fake_client.set_error(
+        "dns", "getData",
+        BegetAPIError("Incorrect input data", code="INVALID_DATA"),
+    )
+    with pytest.raises(BegetAPIError) as exc:
+        dns.dns_get("www.sub.example.com")
+    assert exc.value.code == "INVALID_DATA"
+    # No parent attempt: a transient or input error must not be masked by the
+    # parent zone plus a note claiming the subdomain does not exist.
+    assert sum(1 for _, m, _ in fake_client.calls if m == "getData") == 1
