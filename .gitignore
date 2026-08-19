@@ -5,3 +5,12 @@ dist/
 *.egg-info/
 .venv/
 .ruff_cache/
+
+# Локальная обвязка агентов и beads: репо публичное,
+# а .beads/metadata.json содержит внутренний Dolt-хост
+.beads/
+.claude/
+.codex/
+.agents/
+CLAUDE.md
+AGENTS.md
