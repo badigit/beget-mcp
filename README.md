@@ -34,6 +34,14 @@ claude mcp add beget -s user \
 | Статистика | 4 | нагрузка по сайтам и БД — сводная и детальная |
 | Аккаунт | 2 | тариф, баланс, SSH-доступ |
 
+## Документация
+
+| Файл | О чём |
+|------|-------|
+| [docs/api-coverage.md](docs/api-coverage.md) | покрытие методов Beget API |
+| [docs/beget-api-gotchas.md](docs/beget-api-gotchas.md) | грабли API: ошибка в success-конверте и прочее |
+| [docs/new-app-deploy-chain.md](docs/new-app-deploy-chain.md) | цепочка вызовов для нового приложения на shared-хостинге |
+
 ## Переменные окружения
 
 | Переменная | Назначение |
