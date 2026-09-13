@@ -2,7 +2,7 @@
 
 MCP-сервер для управления сервисами хостера [Beget](https://beget.com/p1211871) из AI-агентов.
 
-Построен на [FastMCP](https://github.com/modelcontextprotocol/python-sdk) и покрывает весь [Beget REST API](https://beget.com/p1211871/kb/api/) — 72 инструмента в 10 разделах.
+Построен на [FastMCP](https://github.com/modelcontextprotocol/python-sdk) и покрывает весь [Beget REST API](https://beget.com/p1211871/kb/api/) — 73 инструмента в 10 разделах.
 
 > [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) — открытый стандарт для подключения AI-моделей к внешним сервисам.
 
@@ -40,6 +40,7 @@ claude mcp add beget -s user \
 |------|-------|
 | [docs/api-coverage.md](docs/api-coverage.md) | покрытие методов Beget API |
 | [docs/beget-api-gotchas.md](docs/beget-api-gotchas.md) | грабли API: ошибка в success-конверте и прочее |
+| [docs/dns-facts-vs-intent.md](docs/dns-facts-vs-intent.md) | DNS: несозданный поддомен, catch-all зоны, задержка распространения |
 | [docs/new-app-deploy-chain.md](docs/new-app-deploy-chain.md) | цепочка вызовов для нового приложения на shared-хостинге |
 
 ## Переменные окружения

@@ -1,0 +1,10 @@
+title: beget-mcp
+description: MCP-сервер для хостинга Beget — 73 инструмента, всё покрытие Beget REST API
+theme: jekyll-theme-cayman
+lang: ru
+show_downloads: false
+
+# Внутренние заметки не должны становиться отдельными страницами сайта: они
+# нужны как разделы, на которые ссылается index, а не как корневая навигация.
+exclude:
+  - _config.yml
