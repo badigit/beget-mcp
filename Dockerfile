@@ -4,7 +4,10 @@ WORKDIR /app
 # uv.lock коммитится и ставится через --frozen: без него `uv sync` резолвил
 # зависимости заново на каждой сборке и образ зависел от даты сборки, а не от
 # содержимого репо. Так mcp 2.0.0 (28.07.2026) и сломал соседний сервер.
-COPY pyproject.toml uv.lock ./
+# README.md и LICENSE тут не для красоты: pyproject объявляет их в readme и
+# license-files, и без них сборка проекта падает на
+# "OSError: Readme file does not exist".
+COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-dev
 
 COPY src/ src/
