@@ -67,6 +67,17 @@ claude mcp add beget -s user \
 | [docs/dns-facts-vs-intent.md](docs/dns-facts-vs-intent.md) | DNS: несозданный поддомен, catch-all зоны, задержка распространения |
 | [docs/new-app-deploy-chain.md](docs/new-app-deploy-chain.md) | цепочка вызовов для нового приложения на shared-хостинге |
 
+## Релиз и деплой
+
+- **push в `main` = выкатка на боевой хост.** `.github/workflows/deploy.yml`
+  дёргает на VPS forced-command `deploy`, который пересобирает контейнер из
+  `/opt/beget-mcp`. Отдельного ручного шага нет — правка в `main` уезжает на прод
+  сама.
+- **тег `vX.Y.Z` = публикация пакетов.** `publish-mcp.yml` гонит тесты и заливает
+  PyPI (trusted publishing), GHCR и MCP Registry — всё по OIDC, без секретов.
+  Версия обязана совпадать в `pyproject.toml`, `server.json` и теге: workflow
+  сверяет их до заливки, потому что версию на PyPI не перезалить.
+
 ## Переменные окружения
 
 | Переменная | Назначение |
