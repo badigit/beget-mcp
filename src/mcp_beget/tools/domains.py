@@ -2,8 +2,43 @@ import json
 
 from ..app import mcp
 from ..client import get_client
+from ..errors import BegetError
 from . import _json
 from .annotations import DESTRUCTIVE, MUTATING, READ_ONLY
+
+# Beget провижинит новому поддомену свой набор записей — из ответа API этого не
+# видно, а последствия видны сразу (см. docs/beget-api-gotchas.md).
+_SUBDOMAIN_PROVISION_NOTE = (
+    "Beget сразу провижинит поддомену собственные записи: A на shared-хостинг "
+    "и MX/TXT(SPF) на beget.com. Два следствия: (1) имя начинает резолвиться на "
+    "shared-хостинг ДО того, как вы зададите свою A-запись — на домене, который "
+    "уже кому-то отдан, это видимая подмена; (2) MX и SPF переживают dns_set_a "
+    "(он мерджит, а не заменяет зону) и остаются жить молча — для поддомена под "
+    "API это мусор, а для почты работающий приём писем. Убирать явно через "
+    "dns_set_records/dns_patch_record."
+)
+
+
+def _domain_fqdn_by_id(domain_id: int) -> str | None:
+    """fqdn домена по его id — из domain/getList."""
+    try:
+        answer = get_client().call("domain", "getList")
+    except BegetError:
+        return None
+    result = answer.get("result") if isinstance(answer, dict) else None
+    if not isinstance(result, list):
+        return None
+    for item in result:
+        if not isinstance(item, dict):
+            continue
+        try:
+            if int(item.get("id")) != int(domain_id):
+                continue
+        except (TypeError, ValueError):
+            continue
+        fqdn = str(item.get("fqdn", "")).strip().rstrip(".").lower()
+        return fqdn or None
+    return None
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -98,6 +133,12 @@ def domain_add_subdomain(subdomain: str, domain_id: int) -> str:
     через ``domain_id`` (см. domain_list). Полный FQDN (``blog.site.ru``) будет
     отклонён.
 
+    ВНИМАНИЕ: Beget не создаёт пустую сущность. Сразу после создания у поддомена
+    появляются собственные записи — A на shared-хостинг Beget плюс MX и TXT(SPF)
+    на beget.com. Имя начинает резолвиться на shared-хостинг ДО вашей A-записи,
+    а MX и SPF переживают dns_set_a (тот мерджит зону) и остаются молча. Ответ
+    тула показывает фактически созданные записи в поле ``records``.
+
     Args:
         subdomain: Имя поддомена (например: blog)
         domain_id: ID родительского домена
@@ -110,16 +151,37 @@ def domain_add_subdomain(subdomain: str, domain_id: int) -> str:
         )
     if not sub:
         raise ValueError("subdomain must not be empty")
-    return _json(
-        get_client().call(
-            "domain",
-            "addSubdomainVirtual",
-            {
-                "subdomain": sub,
-                "domain_id": domain_id,
-            },
-        )
+
+    answer = get_client().call(
+        "domain",
+        "addSubdomainVirtual",
+        {
+            "subdomain": sub,
+            "domain_id": domain_id,
+        },
     )
+
+    out: dict = {
+        "status": "success",
+        "subdomain_id": answer.get("result") if isinstance(answer, dict) else None,
+        "api": answer,
+        "note": _SUBDOMAIN_PROVISION_NOTE,
+    }
+
+    parent = _domain_fqdn_by_id(domain_id)
+    if parent:
+        fqdn = f"{sub}.{parent}"
+        out["fqdn"] = fqdn
+        # Показать, ЧТО именно завёл Beget. Провал чтения не делает создание
+        # неуспешным — поддомен уже создан, отдаём причину и идём дальше.
+        try:
+            data = get_client().call("dns", "getData", {"fqdn": fqdn})
+            result = data.get("result") if isinstance(data, dict) else None
+            out["records"] = (result or {}).get("records")
+        except BegetError as e:
+            out["records_error"] = str(e)
+
+    return _json(out)
 
 
 @mcp.tool(annotations=DESTRUCTIVE)
