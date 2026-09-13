@@ -73,3 +73,18 @@ def ok_change() -> dict:
 def unwrap_tool_json(s: str) -> dict:
     """Tools return JSON strings — parse into a dict."""
     return json.loads(s)
+
+
+@pytest.fixture(autouse=True)
+def stub_dns_probe(monkeypatch: pytest.MonkeyPatch):
+    """Тесты не ходят в сеть: авторитативная проба заглушена по умолчанию.
+
+    dns_get спрашивает NS напрямую, и без заглушки каждый тест зоны стал бы
+    сетевым. Тесты самой пробы подменяют её своим значением поверх.
+    """
+    from mcp_beget.tools import dns as dns_tools
+
+    def _stub(fqdn: str, rtype: str = "A", timeout: float = 5.0) -> dict:
+        return {"type": rtype.upper(), "values": [], "stubbed": True}
+
+    monkeypatch.setattr(dns_tools, "probe", _stub)

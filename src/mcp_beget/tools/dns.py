@@ -10,10 +10,12 @@ zone, tools refuse to proceed (set ``force=True`` to write anyway and lose them)
 """
 
 import json
+import time
 
 from ..app import mcp
 from ..client import get_client
-from ..errors import BegetAPIError
+from ..dnsprobe import probe
+from ..errors import BegetAPIError, BegetError
 from . import _json
 from .annotations import DESTRUCTIVE, READ_ONLY
 
@@ -22,6 +24,21 @@ _LIMITS = {"A": 10, "AAAA": 10, "MX": 10, "TXT": 10, "CNAME": 1, "NS": 10}
 
 # Types that changeRecords cannot round-trip — silently wiped on any write.
 _UNWRITABLE_TYPES = ("CAA", "SRV")
+
+# Запись принята панелью != запись отдаётся миру. Между ними — несколько минут.
+_PROPAGATION_WARNING = (
+    "Принято панелью Beget. Авторитативный NS может отдавать старое значение ещё "
+    "несколько минут: dns_get подтвердит запись сразу, потому что читает тот же "
+    "источник, куда писал. Перед шагами, зависящими от DNS (выпуск сертификата "
+    "Let's Encrypt), подтвердите факт: dns_verify(fqdn, expect=...)."
+)
+
+# Зона может отдавать имена, которых в getData нет вовсе.
+_CATCHALL_WARNING = (
+    "Отсутствие записи в зоне НЕ означает, что имя не резолвится: у зоны может "
+    "быть catch-all на shared-хостинг Beget, невидимый для dns/getData. "
+    "Поле effective — фактический ответ авторитативного NS по запрошенному FQDN."
+)
 
 
 def _normalize_fqdn(fqdn: str) -> str:
@@ -37,6 +54,86 @@ def _get_data(fqdn: str) -> dict:
     return get_client().call("dns", "getData", {"fqdn": fqdn})
 
 
+def _parent_zone(fqdn: str) -> str | None:
+    """Родительская зона поддомена: sub.site.ru -> site.ru. Для site.ru — None."""
+    if fqdn.count(".") < 2:
+        return None
+    return fqdn.split(".", 1)[1]
+
+
+def _parent_domain_id(parent: str) -> int | None:
+    """id родительского домена из domain/getList — сопоставление по fqdn.
+
+    Нужен, чтобы ошибка называла ГОТОВУЮ команду создания поддомена, а не
+    отправляла агента искать domain_id самостоятельно.
+    """
+    try:
+        answer = get_client().call("domain", "getList")
+    except BegetError:
+        return None
+    result = answer.get("result") if isinstance(answer, dict) else None
+    if not isinstance(result, list):
+        return None
+    for item in result:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("fqdn", "")).strip().rstrip(".").lower() != parent:
+            continue
+        try:
+            return int(item.get("id"))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _missing_subdomain_error(fqdn: str, cause: str) -> BegetAPIError | None:
+    """Ошибка «сущности поддомена нет», если родительская зона при этом читается.
+
+    У Beget поддомен — отдельная сущность, а не запись в зоне родителя. Пока её
+    нет, getData по FQDN отвечает METHOD_FAILED. Совет «запишите зону целиком
+    через replace_all» для этого случая неверен и опасен: сущность так не
+    создаётся, а слепая запись — ровно то, от чего защищает read-merge-write.
+    Возвращает None, если причина другая (тогда остаётся прежний NO_ZONE_DATA).
+    """
+    parent = _parent_zone(fqdn)
+    if parent is None:
+        return None
+    try:
+        parent_answer = _get_data(parent)
+    except BegetError:
+        return None
+    parent_result = parent_answer.get("result") if isinstance(parent_answer, dict) else None
+    if not isinstance(parent_result, dict) or not parent_result:
+        return None
+
+    prefix = fqdn.split(".", 1)[0]
+    domain_id = _parent_domain_id(parent)
+    call_hint = (
+        f"domain_add_subdomain(subdomain='{prefix}', domain_id={domain_id})"
+        if domain_id is not None
+        else (
+            f"domain_add_subdomain(subdomain='{prefix}', domain_id=<id {parent} "
+            f"из domain_list>)"
+        )
+    )
+    return BegetAPIError(
+        f"{cause} Parent zone {parent} reads fine, so the zone is not broken — "
+        f"the subdomain entity {fqdn} was never created in Beget. Create it "
+        f"first: {call_hint}, then retry this call. Do NOT use dns_set_records "
+        f"with replace_all=True: it does not create the entity.",
+        code="SUBDOMAIN_NOT_CREATED",
+        details={
+            "queried_fqdn": fqdn,
+            "parent_zone": parent,
+            "fix": {
+                "tool": "domain_add_subdomain",
+                "subdomain": prefix,
+                "domain_id": domain_id,
+            },
+        },
+    )
+
+
 def _get_result(fqdn: str) -> dict:
     """dns/getData unwrapped to the ``result`` dict (records, set_type, ...).
 
@@ -44,10 +141,29 @@ def _get_result(fqdn: str) -> dict:
     would make read-merge-write silently degrade into a zone-wide wipe: the
     merge would preserve nothing and changeRecords would drop every record
     the caller did not pass.
+
+    Несозданный поддомен отделяется от прочих причин: он лечится
+    domain_add_subdomain, а не записью зоны целиком.
     """
-    answer = _get_data(fqdn)
+    try:
+        answer = _get_data(fqdn)
+    except BegetAPIError as e:
+        # METHOD_FAILED — единственный код, который у Beget значит «такой
+        # сущности нет». INVALID_DATA, лимиты и транзиентные сбои отдаём как
+        # есть, иначе настоящая причина спрячется за советом создать поддомен.
+        if e.code == "METHOD_FAILED":
+            hint = _missing_subdomain_error(fqdn, f"dns/getData failed: {e.message}.")
+            if hint is not None:
+                raise hint from e
+        raise
+
     result = answer.get("result") if isinstance(answer, dict) else None
     if not isinstance(result, dict) or not result:
+        hint = _missing_subdomain_error(
+            fqdn, f"dns/getData returned no zone data for {fqdn}."
+        )
+        if hint is not None:
+            raise hint
         raise BegetAPIError(
             f"dns/getData returned no zone data for {fqdn} — refusing to write "
             f"blind, as changeRecords would wipe the existing records. To write "
@@ -125,25 +241,40 @@ def _merge_set(
             "TTL is set per-zone by Beget (typically clamped to 600s). "
             "Per-record TTL in the request may be ignored — verify with dns_get."
         )
+    warnings.append(_PROPAGATION_WARNING)
 
     return {"status": "success", "warnings": warnings, "records_sent": merged, "api": response}
 
 
 @mcp.tool(annotations=READ_ONLY)
-def dns_get(fqdn: str) -> str:
-    """DNS-записи FQDN. При отсутствии — фолбэк на родительскую зону.
+def dns_get(fqdn: str, check_effective: bool = True) -> str:
+    """DNS-записи FQDN плюс фактический ответ авторитативного NS.
 
     В Beget поддомен — отдельная сущность со своим getData. Если прямой запрос
     вернул METHOD_FAILED, функция пробует родительскую зону и возвращает её
     records с пометкой (актуально для DKIM типа mail._domainkey.site.ru,
     которые иногда хранятся на уровне родителя).
 
+    ВАЖНО: отсутствие записи в зоне НЕ означает, что имя не резолвится. У зоны
+    бывает catch-all на shared-хостинг Beget, невидимый для dns/getData: имя
+    отвечает чужим адресом, хотя в выдаче API его нет. Поле ``effective`` —
+    фактический ответ авторитативного NS зоны, запрошенный напрямую по UDP
+    мимо кеша резолвера. Расхождение «в зоне нет, а отвечает» видно сразу.
+
     Args:
         fqdn: Имя домена (site.ru или sub.site.ru)
+        check_effective: Спросить авторитативный NS (по умолчанию да)
     """
     fqdn_n = _normalize_fqdn(fqdn)
+    effective = probe(fqdn_n) if check_effective else None
+
+    def _with_effective(payload: dict) -> dict:
+        if effective is None:
+            return payload
+        return {**payload, "effective": effective, "effective_note": _CATCHALL_WARNING}
+
     try:
-        return _json(_get_data(fqdn_n))
+        return _json(_with_effective(_get_data(fqdn_n)))
     except BegetAPIError as e:
         # Только METHOD_FAILED значит «такой сущности нет». INVALID_DATA,
         # rate-limit и транзиентные сбои отдаём как есть: иначе фолбэк подменит
@@ -151,25 +282,92 @@ def dns_get(fqdn: str) -> str:
         # настоящую причину.
         if e.code != "METHOD_FAILED":
             raise
-        if "." not in fqdn_n or fqdn_n.count(".") == 1:
+        parent = _parent_zone(fqdn_n)
+        if parent is None:
             raise
-        parent = fqdn_n.split(".", 1)[1]
         try:
             parent_answer = _get_data(parent)
         except BegetAPIError:
             raise e from None
         return _json(
-            {
-                "note": (
-                    f"getData({fqdn_n}) failed: {e.message}. "
-                    f"Subdomain entity likely does not exist in Beget. "
-                    f"Returning parent zone {parent} so you can see what is there."
-                ),
-                "queried_fqdn": fqdn_n,
-                "parent_zone": parent,
-                "parent": parent_answer,
-            }
+            _with_effective(
+                {
+                    "note": (
+                        f"getData({fqdn_n}) failed: {e.message}. "
+                        f"Subdomain entity likely does not exist in Beget "
+                        f"(create it with domain_add_subdomain). "
+                        f"Returning parent zone {parent} so you can see what is there."
+                    ),
+                    "queried_fqdn": fqdn_n,
+                    "parent_zone": parent,
+                    "parent": parent_answer,
+                }
+            )
         )
+
+
+@mcp.tool(annotations=READ_ONLY)
+def dns_verify(
+    fqdn: str, expect: str = "", type: str = "A", timeout: int = 120
+) -> str:
+    """Подтвердить факт у авторитативного NS зоны: отдаётся ли значение миру.
+
+    success от dns_set_* означает «принято панелью», а dns_get подтверждает
+    ровно это — он читает тот же источник, куда писал. Авторитативный NS может
+    отдавать старое значение ещё несколько минут. Запуск certbot в этом окне
+    сжигает попытку и приближает лимит Let's Encrypt на домен.
+
+    Тул опрашивает авторитативные NS зоны напрямую по UDP (мимо кеша любого
+    резолвера) до совпадения с ``expect`` или до дедлайна.
+
+    Вручную сверять надо ``nslookup``, а НЕ ``Resolve-DnsName -Server``: флаг
+    -Server не обходит клиентский кеш Windows и отдаёт устаревшее значение.
+
+    Args:
+        fqdn: Имя, которое проверяем
+        expect: Ожидаемое значение (IP для A, имя для CNAME/MX). Пусто — просто
+            вернуть текущий ответ NS одним запросом, без ожидания
+        type: Тип записи (A, AAAA, CNAME, MX, TXT, NS)
+        timeout: Сколько секунд ждать совпадения (по умолчанию 120)
+    """
+    fqdn_n = _normalize_fqdn(fqdn)
+    type_u = type.upper()
+    expect_n = _strip_trailing_dot(expect).lower() if expect else ""
+
+    deadline = time.monotonic() + max(0, timeout)
+    attempts = 0
+    started = time.monotonic()
+    while True:
+        attempts += 1
+        observed = probe(fqdn_n, type_u)
+        values = [str(v).lower() for v in observed.get("values", [])]
+        matched = bool(expect_n) and expect_n in values
+        if matched or not expect_n or time.monotonic() >= deadline:
+            return _json(
+                {
+                    "fqdn": fqdn_n,
+                    "type": type_u,
+                    "expect": expect_n or None,
+                    "matched": matched if expect_n else None,
+                    "observed": observed,
+                    "attempts": attempts,
+                    "waited_seconds": round(time.monotonic() - started, 1),
+                    "note": (
+                        _CATCHALL_WARNING
+                        if not expect_n
+                        else (
+                            "Совпало: значение отдаётся авторитативным NS."
+                            if matched
+                            else (
+                                "Не совпало за отведённое время. Запись может быть "
+                                "принята панелью и ещё не распространена — повторите "
+                                "dns_verify позже, до действий, зависящих от DNS."
+                            )
+                        )
+                    ),
+                }
+            )
+        time.sleep(min(5, max(1, deadline - time.monotonic())))
 
 
 @mcp.tool(annotations=DESTRUCTIVE)

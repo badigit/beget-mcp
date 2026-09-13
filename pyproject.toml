@@ -9,6 +9,9 @@ dependencies = [
     "mcp[cli]>=1.27,<2.0.0",
     "requests",
     "python-dotenv",
+    # Опрос авторитативного NS напрямую: dns_verify и поле effective в dns_get.
+    # Рекурсивный резолвер тут не годится — он отдаёт кеш, а не факт зоны.
+    "dnspython>=2.6",
 ]
 
 [project.scripts]
@@ -19,11 +22,16 @@ test = [
     "pytest>=8",
     "pytest-mock>=3.12",
     "responses>=0.25",
+    "pytest-timeout>=2.3",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Зависший тест неотличим от идущего: у dns_verify есть цикл ожидания, у пробы —
+# сеть. Метод thread обязателен явно: на Windows signal не работает (нет SIGALRM).
+timeout = 30
+timeout_method = "thread"
 
 [build-system]
 requires = ["hatchling"]
