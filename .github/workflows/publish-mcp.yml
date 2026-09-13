@@ -53,10 +53,17 @@ jobs:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v5
       - run: uv build
+      # Версия на PyPI неизменна: повторный прогон того же тега (после починки
+      # соседнего job) обязан пройти мимо уже залитой, а не падать 400.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
 
   ghcr:
-    needs: test
+    # version-check обязателен именно в needs: outputs чужого job доступны
+    # только тем, кто от него зависит. Без этого tag подставлялся пустым и
+    # buildx падал на "invalid tag ghcr.io/badigit/beget-mcp:".
+    needs: [version-check, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
