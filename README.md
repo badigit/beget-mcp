@@ -6,18 +6,42 @@ MCP-сервер для управления сервисами хостера [
 
 > [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) — открытый стандарт для подключения AI-моделей к внешним сервисам.
 
+<!-- mcp-name: io.github.badigit/beget-mcp -->
+
 ## Быстрый старт
 
+Из PyPI, без установки в систему:
+
 ```bash
-# Установка
+claude mcp add beget -s user \
+  -e BEGET_API_LOGIN=your_login \
+  -e BEGET_API_PASSWORD=your_password \
+  -- uvx beget-mcp
+```
+
+Контейнером (образ по умолчанию поднимает SSE — локальному клиенту нужен stdio):
+
+```bash
+docker run -i --rm \
+  -e MCP_TRANSPORT=stdio \
+  -e BEGET_API_LOGIN=your_login \
+  -e BEGET_API_PASSWORD=your_password \
+  ghcr.io/badigit/beget-mcp:latest
+```
+
+Из исходников:
+
+```bash
 pip install -e .
 
-# Подключение к Claude Code
 claude mcp add beget -s user \
   -e BEGET_API_LOGIN=your_login \
   -e BEGET_API_PASSWORD=your_password \
   -- python -m mcp_beget
 ```
+
+Сервер публикуется в [MCP Registry](https://registry.modelcontextprotocol.io) под именем
+`io.github.badigit/beget-mcp`. Страница проекта — <https://badigit.github.io/beget-mcp/>.
 
 ## Что умеет
 

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.badigit/beget-mcp",
+  "title": "Beget Hosting",
+  "description": "Beget hosting: sites, domains, DNS, MySQL, FTP, cron, backups, mail — 73 tools",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/badigit/beget-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://badigit.github.io/beget-mcp/",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "beget-mcp",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BEGET_API_LOGIN",
+          "description": "Beget account login",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "BEGET_API_PASSWORD",
+          "description": "Beget account password (API access must be enabled in the panel)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/badigit/beget-mcp:0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BEGET_API_LOGIN",
+          "description": "Beget account login",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "BEGET_API_PASSWORD",
+          "description": "Beget account password (API access must be enabled in the panel)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "MCP_TRANSPORT",
+          "description": "Transport: stdio for local clients, sse for a shared HTTP deployment. The image defaults to sse, so stdio clients must set this.",
+          "default": "stdio",
+          "isRequired": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

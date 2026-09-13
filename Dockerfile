@@ -10,6 +10,10 @@ RUN uv sync --frozen --no-dev
 COPY src/ src/
 RUN uv sync --frozen --no-dev
 
+# Реестр MCP проверяет владение образом по этому имени: оно обязано совпадать
+# с полем name в server.json, иначе публикация отклоняется.
+LABEL io.modelcontextprotocol.server.name="io.github.badigit/beget-mcp"
+
 ENV MCP_TRANSPORT=sse
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8322

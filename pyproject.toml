@@ -1,8 +1,19 @@
 [project]
 name = "beget-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Beget hosting MCP server — manage sites, domains, MySQL, FTP, DNS, cron, backups via AI agents"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+keywords = ["mcp", "model-context-protocol", "beget", "hosting", "dns", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
     # Верхняя граница обязательна: mcp 2.0.0 (28.07.2026) убрал mcp.server.fastmcp,
     # на который опирается app.py. Снимать только вместе с миграцией на MCPServer.
@@ -13,6 +24,11 @@ dependencies = [
     # Рекурсивный резолвер тут не годится — он отдаёт кеш, а не факт зоны.
     "dnspython>=2.6",
 ]
+
+[project.urls]
+Homepage = "https://badigit.github.io/beget-mcp/"
+Repository = "https://github.com/badigit/beget-mcp"
+Issues = "https://github.com/badigit/beget-mcp/issues"
 
 [project.scripts]
 beget-mcp = "mcp_beget.server:main"

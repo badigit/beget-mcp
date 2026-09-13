@@ -1,0 +1,98 @@
+name: Publish to PyPI, GHCR and MCP Registry
+
+# Релиз идёт по тегу vX.Y.Z. Ни одного секрета: PyPI берётся trusted publishing
+# (OIDC), GHCR — встроенным GITHUB_TOKEN, реестр MCP — тем же OIDC. Токен,
+# который не заведён, невозможно утечь и не надо ротировать.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Версия живёт в трёх местах, и расхождение всплыло бы уже после
+      # публикации пакета: PyPI не даёт перезалить версию.
+      - name: Tag matches pyproject and server.json
+        id: tag
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          [ "$GITHUB_REF" = "${GITHUB_REF#refs/tags/}" ] && VERSION="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          PY=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          SRV=$(jq -r .version server.json)
+          OCI=$(jq -r '.packages[] | select(.registryType=="oci") | .identifier' server.json)
+          PYPKG=$(jq -r '.packages[] | select(.registryType=="pypi") | .version' server.json)
+          echo "tag=$VERSION pyproject=$PY server.json=$SRV pypi=$PYPKG oci=$OCI"
+          test "$PY" = "$VERSION" || { echo "::error::pyproject version $PY != tag $VERSION"; exit 1; }
+          test "$SRV" = "$VERSION" || { echo "::error::server.json version $SRV != tag $VERSION"; exit 1; }
+          test "$PYPKG" = "$VERSION" || { echo "::error::pypi package version $PYPKG != tag $VERSION"; exit 1; }
+          test "$OCI" = "ghcr.io/badigit/beget-mcp:$VERSION" || { echo "::error::oci identifier $OCI != tag $VERSION"; exit 1; }
+
+  test:
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra test
+      - run: uv run pytest -q
+
+  pypi:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # trusted publishing, вместо PYPI_API_TOKEN
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  ghcr:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/badigit/beget-mcp:${{ needs.version-check.outputs.version }}
+            ghcr.io/badigit/beget-mcp:latest
+          # Реестр MCP проверяет владение образом по этой аннотации; она же
+          # стоит LABEL'ом в Dockerfile — дублируется намеренно, так как
+          # аннотация манифеста и label конфига это разные места.
+          annotations: |
+            io.modelcontextprotocol.server.name=io.github.badigit/beget-mcp
+
+  registry:
+    needs: [version-check, pypi, ghcr]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC-аутентификация в реестре MCP
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Authenticate
+        run: ./mcp-publisher login github-oidc
+      - name: Publish
+        run: ./mcp-publisher publish
